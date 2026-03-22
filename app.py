@@ -5,11 +5,20 @@ import os
 
 app = Flask(__name__)
 
-# ── Manual CORS — most reliable approach ────────────────────
+# ── Allow ALL origins explicitly ─────────────────────────────
+ALLOWED_ORIGINS = [
+    'http://localhost:57022',
+    'http://localhost:5000',
+    'https://rembg-api-94wh.onrender.com',
+    '*'  # allow everything
+]
+
 def add_cors_headers(response):
+    origin = request.headers.get('Origin', '*')
     response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Origin'
+    response.headers['Access-Control-Max-Age'] = '3600'
     return response
 
 @app.after_request
@@ -25,7 +34,6 @@ def health():
 
 @app.route('/remove-bg', methods=['POST', 'OPTIONS'])
 def remove_bg():
-    # Handle browser preflight request
     if request.method == 'OPTIONS':
         response = make_response('', 200)
         return add_cors_headers(response)
@@ -35,7 +43,7 @@ def remove_bg():
             return {'error': 'No image provided'}, 400
 
         input_bytes = request.files['image'].read()
-        
+
         if len(input_bytes) == 0:
             return {'error': 'Empty image'}, 400
 
@@ -50,7 +58,7 @@ def remove_bg():
         return add_cors_headers(response)
 
     except Exception as e:
-        print(f'Error: {e}')
+        print(f'Error processing image: {e}')
         return {'error': str(e)}, 500
 
 if __name__ == '__main__':
