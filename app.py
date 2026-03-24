@@ -5,12 +5,6 @@ import os
 
 app = Flask(__name__)
 
-# ── Use u2netp — tiny model (4MB), fits in 512MB RAM ────────
-print('Loading rembg model...')
-SESSION = new_session('u2netp')  # ← changed from u2net to u2netp
-print('Model loaded!')
-# ────────────────────────────────────────────────────────────
-
 @app.after_request
 def add_cors(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
@@ -38,12 +32,17 @@ def remove_bg():
             return jsonify({'error': 'No image provided'}), 400
 
         input_bytes = request.files['image'].read()
-
         if len(input_bytes) == 0:
             return jsonify({'error': 'Empty image'}), 400
 
         print(f'Processing: {len(input_bytes)} bytes')
-        output_bytes = remove(input_bytes, session=SESSION)
+
+        # ── Create session per request — saves RAM ───────────
+        session = new_session('u2netp')
+        output_bytes = remove(input_bytes, session=session)
+        del session  # free memory immediately after use
+        # ────────────────────────────────────────────────────
+
         print(f'Done: {len(output_bytes)} bytes')
 
         return send_file(
@@ -51,6 +50,10 @@ def remove_bg():
             mimetype='image/png',
             as_attachment=False
         )
+
+    except MemoryError as e:
+        print(f'OUT OF MEMORY: {e}')
+        return jsonify({'error': 'Out of memory'}), 503
 
     except Exception as e:
         print(f'ERROR: {e}')
