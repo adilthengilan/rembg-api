@@ -4,6 +4,7 @@ import io
 import os
 
 app = Flask(__name__)
+SESSION = None  # ← don't load at startup
 
 @app.after_request
 def add_cors(response):
@@ -23,10 +24,11 @@ def handle_preflight():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok'}), 200
+    return jsonify({'status': 'ok'}), 200  # ← responds immediately, no model needed
 
 @app.route('/remove-bg', methods=['POST'])
 def remove_bg():
+    global SESSION
     try:
         if 'image' not in request.files:
             return jsonify({'error': 'No image provided'}), 400
@@ -35,14 +37,15 @@ def remove_bg():
         if len(input_bytes) == 0:
             return jsonify({'error': 'Empty image'}), 400
 
-        print(f'Processing: {len(input_bytes)} bytes')
-
-        # ── Create session per request — saves RAM ───────────
-        session = new_session('u2netp')
-        output_bytes = remove(input_bytes, session=session)
-        del session  # free memory immediately after use
+        # ── Load model only when first image arrives ─────────
+        if SESSION is None:
+            print('Loading silueta model...')
+            SESSION = new_session('silueta')
+            print('Model loaded!')
         # ────────────────────────────────────────────────────
 
+        print(f'Processing: {len(input_bytes)} bytes')
+        output_bytes = remove(input_bytes, session=SESSION)
         print(f'Done: {len(output_bytes)} bytes')
 
         return send_file(
@@ -51,9 +54,9 @@ def remove_bg():
             as_attachment=False
         )
 
-    except MemoryError as e:
-        print(f'OUT OF MEMORY: {e}')
-        return jsonify({'error': 'Out of memory'}), 503
+    except MemoryError:
+        SESSION = None  # reset session on OOM
+        return jsonify({'error': 'Out of memory, try a smaller image'}), 503
 
     except Exception as e:
         print(f'ERROR: {e}')
