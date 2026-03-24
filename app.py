@@ -1,20 +1,23 @@
 from flask import Flask, request, send_file, make_response, jsonify
-from rembg import remove
+from rembg import remove, new_session
 import io
 import os
 
 app = Flask(__name__)
 
-# ── Add CORS to every single response ───────────────────────
+# ── Pre-load model when server starts ───────────────────────
+print('Loading rembg model...')
+SESSION = new_session('u2net')  # downloads & caches model at startup
+print('Model loaded successfully!')
+# ────────────────────────────────────────────────────────────
+
 @app.after_request
 def add_cors(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = '*'
-    response.headers['Access-Control-Max-Age'] = '86400'
     return response
 
-# ── Handle ALL preflight OPTIONS requests globally ──────────
 @app.before_request
 def handle_preflight():
     if request.method == 'OPTIONS':
@@ -22,7 +25,6 @@ def handle_preflight():
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = '*'
-        response.headers['Access-Control-Max-Age'] = '86400'
         return response, 200
 
 @app.route('/health', methods=['GET'])
@@ -43,7 +45,9 @@ def remove_bg():
 
         print(f'Processing image: {len(input_bytes)} bytes')
 
-        output_bytes = remove(input_bytes)
+        # ── Use pre-loaded session ───────────────────────────
+        output_bytes = remove(input_bytes, session=SESSION)
+        # ────────────────────────────────────────────────────
 
         print(f'Done. Output: {len(output_bytes)} bytes')
 
@@ -62,4 +66,3 @@ def remove_bg():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-
