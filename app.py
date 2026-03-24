@@ -4,7 +4,7 @@ import io
 import os
 
 app = Flask(__name__)
-SESSION = None  # ← don't load at startup
+SESSION = None
 
 @app.after_request
 def add_cors(response):
@@ -24,7 +24,7 @@ def handle_preflight():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok'}), 200  # ← responds immediately, no model needed
+    return jsonify({'status': 'ok'}), 200
 
 @app.route('/remove-bg', methods=['POST'])
 def remove_bg():
@@ -37,14 +37,13 @@ def remove_bg():
         if len(input_bytes) == 0:
             return jsonify({'error': 'Empty image'}), 400
 
-        # ── Load model only when first image arrives ─────────
-        if SESSION is None:
-            print('Loading silueta model...')
-            SESSION = new_session('silueta')
-            print('Model loaded!')
-        # ────────────────────────────────────────────────────
-
         print(f'Processing: {len(input_bytes)} bytes')
+
+        if SESSION is None:
+            print('Loading model...')
+            SESSION = new_session('silueta')
+            print('Model ready!')
+
         output_bytes = remove(input_bytes, session=SESSION)
         print(f'Done: {len(output_bytes)} bytes')
 
@@ -55,8 +54,8 @@ def remove_bg():
         )
 
     except MemoryError:
-        SESSION = None  # reset session on OOM
-        return jsonify({'error': 'Out of memory, try a smaller image'}), 503
+        SESSION = None
+        return jsonify({'error': 'Out of memory'}), 503
 
     except Exception as e:
         print(f'ERROR: {e}')
