@@ -5,10 +5,10 @@ import os
 
 app = Flask(__name__)
 
-# ── Pre-load model when server starts ───────────────────────
+# ── Use u2netp — tiny model (4MB), fits in 512MB RAM ────────
 print('Loading rembg model...')
-SESSION = new_session('u2net')  # downloads & caches model at startup
-print('Model loaded successfully!')
+SESSION = new_session('u2netp')  # ← changed from u2net to u2netp
+print('Model loaded!')
 # ────────────────────────────────────────────────────────────
 
 @app.after_request
@@ -37,19 +37,14 @@ def remove_bg():
         if 'image' not in request.files:
             return jsonify({'error': 'No image provided'}), 400
 
-        file = request.files['image']
-        input_bytes = file.read()
+        input_bytes = request.files['image'].read()
 
         if len(input_bytes) == 0:
             return jsonify({'error': 'Empty image'}), 400
 
-        print(f'Processing image: {len(input_bytes)} bytes')
-
-        # ── Use pre-loaded session ───────────────────────────
+        print(f'Processing: {len(input_bytes)} bytes')
         output_bytes = remove(input_bytes, session=SESSION)
-        # ────────────────────────────────────────────────────
-
-        print(f'Done. Output: {len(output_bytes)} bytes')
+        print(f'Done: {len(output_bytes)} bytes')
 
         return send_file(
             io.BytesIO(output_bytes),
