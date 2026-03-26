@@ -1,6 +1,5 @@
 flask
-rembg[cpu]
-gunicorn
+rembg
+onnxruntime
 pillow
 numpy
-onnxruntime
