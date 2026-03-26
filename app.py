@@ -5,10 +5,10 @@ import os
 
 app = Flask(__name__)
 
-# ✅ Load model at startup (IMPORTANT)
+# ✅ Load lightweight model at startup (VERY IMPORTANT)
 try:
-    print("Loading model (u2net)...")
-    SESSION = new_session('u2net')
+    print("Loading model (u2netp)...")
+    SESSION = new_session('u2netp')
     print("Model loaded successfully!")
 except Exception as e:
     print(f"Model loading failed: {e}")
@@ -24,7 +24,7 @@ def add_cors(response):
     return response
 
 
-# ✅ Handle preflight
+# ✅ Handle preflight requests
 @app.before_request
 def handle_preflight():
     if request.method == 'OPTIONS':
@@ -35,7 +35,7 @@ def handle_preflight():
         return response, 200
 
 
-# ✅ Health check
+# ✅ Health check route
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok'}), 200
@@ -59,12 +59,12 @@ def remove_bg():
 
         print(f"Processing image: {len(input_bytes)} bytes")
 
-        # Reload session if needed
+        # Reload session if needed (fail-safe)
         if SESSION is None:
-            print("Reloading model...")
-            SESSION = new_session('u2net')
+            print("Reloading model (u2netp)...")
+            SESSION = new_session('u2netp')
 
-        # ✅ Faster processing tweak
+        # ✅ Optimized processing (fast + low memory)
         output_bytes = remove(
             input_bytes,
             session=SESSION,
@@ -90,7 +90,7 @@ def remove_bg():
         return jsonify({'error': str(e)}), 500
 
 
-# ✅ Run server (local only)
+# ✅ Run locally (Render uses gunicorn)
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
