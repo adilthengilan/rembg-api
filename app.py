@@ -5,14 +5,8 @@ import os
 
 app = Flask(__name__)
 
-# ✅ Load lightweight model at startup (VERY IMPORTANT)
-try:
-    print("Loading model (u2netp)...")
-    SESSION = new_session('u2netp')
-    print("Model loaded successfully!")
-except Exception as e:
-    print(f"Model loading failed: {e}")
-    SESSION = None
+# ❗ Do NOT load model at startup (important for Render)
+SESSION = None
 
 
 # ✅ Enable CORS
@@ -24,7 +18,7 @@ def add_cors(response):
     return response
 
 
-# ✅ Handle preflight requests
+# ✅ Handle preflight
 @app.before_request
 def handle_preflight():
     if request.method == 'OPTIONS':
@@ -35,7 +29,7 @@ def handle_preflight():
         return response, 200
 
 
-# ✅ Health check route
+# ✅ Health route (Render uses this implicitly)
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok'}), 200
@@ -47,7 +41,6 @@ def remove_bg():
     global SESSION
 
     try:
-        # Validate file
         if 'image' not in request.files:
             return jsonify({'error': 'No image provided'}), 400
 
@@ -59,19 +52,20 @@ def remove_bg():
 
         print(f"Processing image: {len(input_bytes)} bytes")
 
-        # Reload session if needed (fail-safe)
+        # 🔥 Lazy load model (FIX FOR RENDER)
         if SESSION is None:
-            print("Reloading model (u2netp)...")
+            print("Loading model (u2netp)...")
             SESSION = new_session('u2netp')
+            print("Model loaded successfully!")
 
-        # ✅ Optimized processing (fast + low memory)
+        # ✅ Process image (optimized)
         output_bytes = remove(
             input_bytes,
             session=SESSION,
             alpha_matting=False
         )
 
-        print(f"Processed successfully: {len(output_bytes)} bytes")
+        print(f"Processed: {len(output_bytes)} bytes")
 
         return send_file(
             io.BytesIO(output_bytes),
@@ -90,7 +84,7 @@ def remove_bg():
         return jsonify({'error': str(e)}), 500
 
 
-# ✅ Run locally (Render uses gunicorn)
+# ✅ Local run (Render ignores this, uses gunicorn)
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
