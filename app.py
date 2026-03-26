@@ -6,7 +6,7 @@ import os
 
 app = Flask(__name__)
 
-# ❗ Lazy load model (important for Render)
+# 🔥 Lazy load model
 SESSION = None
 
 
@@ -36,54 +36,64 @@ def health():
     return jsonify({'status': 'ok'}), 200
 
 
-# ✅ Remove background API
+# ✅ Remove Background API
 @app.route('/remove-bg', methods=['POST'])
 def remove_bg():
     global SESSION
 
     try:
-        # 🔹 Check file exists
-        if 'image' not in request.files:
+        input_bytes = None
+
+        # ✅ Multipart (Mobile)
+        if 'image' in request.files:
+            input_bytes = request.files['image'].read()
+
+        # ✅ Raw bytes (Web)
+        else:
+            raw = request.get_data()
+            if raw:
+                input_bytes = raw
+
+        if not input_bytes:
             return jsonify({'error': 'No image provided'}), 400
 
-        file = request.files['image']
-        input_bytes = file.read()
+        print(f"📥 Received: {len(input_bytes)} bytes")
 
-        # 🔹 Empty check
-        if len(input_bytes) == 0:
-            return jsonify({'error': 'Empty image'}), 400
+        # 🔥 Hard size limit (Render safe)
+        if len(input_bytes) > 1 * 1024 * 1024:  # 1MB
+            return jsonify({'error': 'Image too large (max 1MB)'}), 400
 
-        # 🔹 Size limit (IMPORTANT for Render)
-        if len(input_bytes) > 2 * 1024 * 1024:  # 2MB
-            return jsonify({'error': 'Image too large (max 2MB)'}), 400
-
-        # 🔹 Validate image
+        # 🔥 Open + Resize (CRITICAL FIX)
         try:
-            Image.open(io.BytesIO(input_bytes))
-        except Exception:
-            return jsonify({'error': 'Invalid image file'}), 400
+            img = Image.open(io.BytesIO(input_bytes)).convert("RGB")
+            img.thumbnail((1024, 1024))  # reduce memory usage
 
-        print(f"Processing image: {len(input_bytes)} bytes")
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=85)
+            input_bytes = buffer.getvalue()
+
+        except Exception:
+            return jsonify({'error': 'Invalid image'}), 400
 
         # 🔥 Lazy load model
         if SESSION is None:
-            print("Loading model (u2netp)...")
+            print("🚀 Loading model (u2netp)...")
             SESSION = new_session('u2netp')
-            print("Model loaded!")
+            print("✅ Model ready!")
 
-        # 🔥 Process
+        # 🔥 Process (optimized)
         output_bytes = remove(
             input_bytes,
             session=SESSION,
-            alpha_matting=False
+            alpha_matting=False,
+            post_process_mask=False  # 🔥 reduces RAM usage
         )
 
-        print(f"Processed successfully: {len(output_bytes)} bytes")
+        print("✅ Processed successfully")
 
         return send_file(
             io.BytesIO(output_bytes),
-            mimetype='image/png',
-            as_attachment=False
+            mimetype='image/png'
         )
 
     except MemoryError:
@@ -92,12 +102,10 @@ def remove_bg():
 
     except Exception as e:
         print("🔥 ERROR:", str(e))
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-# ✅ Local run (Render uses gunicorn)
+# ✅ Local run
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
